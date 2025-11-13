@@ -7,7 +7,7 @@ class Product {
   final String? description;
   final double price;
   final int stock;
-  final String? image;
+  final String? imageUrl;
   final Category? category;
   final int? categoryId;
   final double? rating;
@@ -22,7 +22,7 @@ class Product {
     this.description,
     required this.price,
     required this.stock,
-    this.image,
+    this.imageUrl,
     this.category,
     this.categoryId,
     this.rating,
@@ -48,13 +48,16 @@ class Product {
           ? double.parse(json['price'] as String)
           : (json['price'] as num).toDouble(),
       stock: json['stock'] as int,
-      image: json['image'] as String?,
+      imageUrl: json['image_url'] as String?,
       // Leer category_details (Map) en lugar de category (int)
-      category: json['category_details'] != null && json['category_details'] is Map
+      category:
+          json['category_details'] != null && json['category_details'] is Map
           ? Category.fromJson(json['category_details'] as Map<String, dynamic>)
           : null,
       // El backend devuelve 'category' como int (ID)
-      categoryId: json['category'] is int ? json['category'] as int : json['category_id'] as int?,
+      categoryId: json['category'] is int
+          ? json['category'] as int
+          : json['category_id'] as int?,
       rating: json['rating'] != null
           ? (json['rating'] is String)
                 ? double.parse(json['rating'] as String)
@@ -79,7 +82,7 @@ class Product {
       'description': description,
       'price': price,
       'stock': stock,
-      'image': image,
+      'image_url': imageUrl,
       'category': category?.toJson(),
       'category_id': categoryId,
       'rating': rating,
@@ -97,7 +100,7 @@ class Product {
     String? description,
     double? price,
     int? stock,
-    String? image,
+    String? imageUrl,
     Category? category,
     int? categoryId,
     double? rating,
@@ -112,7 +115,7 @@ class Product {
       description: description ?? this.description,
       price: price ?? this.price,
       stock: stock ?? this.stock,
-      image: image ?? this.image,
+      imageUrl: imageUrl ?? this.imageUrl,
       category: category ?? this.category,
       categoryId: categoryId ?? this.categoryId,
       rating: rating ?? this.rating,

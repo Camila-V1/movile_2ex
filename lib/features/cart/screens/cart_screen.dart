@@ -231,9 +231,9 @@ class _CartItemCard extends ConsumerWidget {
         // Imagen del producto
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: item.product.image != null
+          child: item.product.imageUrl != null
               ? CachedNetworkImage(
-                  imageUrl: item.product.image!,
+                  imageUrl: item.product.imageUrl!,
                   width: 100,
                   height: 100,
                   fit: BoxFit.cover,
@@ -267,7 +267,9 @@ class _CartItemCard extends ConsumerWidget {
               // Nombre y precio
               Text(
                 item.product.name,
-                style: AppTheme.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+                style: AppTheme.bodyMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

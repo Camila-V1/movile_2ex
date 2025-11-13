@@ -10,6 +10,11 @@ import '../../features/cart/screens/cart_screen.dart';
 import '../../features/cart/screens/checkout_screen.dart';
 import '../../features/cart/screens/payment_success_screen.dart';
 import '../../features/cart/screens/payment_cancelled_screen.dart';
+import '../../features/orders/screens/my_orders_screen.dart';
+import '../../features/orders/screens/order_detail_screen.dart';
+import '../../features/returns/screens/return_request_screen.dart';
+import '../../features/returns/screens/my_returns_screen.dart';
+import '../../features/wallet/screens/my_wallet_screen.dart';
 
 /// Configuración de rutas con GoRouter
 /// Maneja navegación y rutas protegidas
@@ -117,9 +122,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'payment-success',
         pageBuilder: (context, state) {
           final orderId = state.uri.queryParameters['orderId'];
+          final paidWithWallet =
+              state.uri.queryParameters['paidWithWallet'] == 'true';
           return MaterialPage(
             key: state.pageKey,
-            child: PaymentSuccessScreen(orderId: orderId),
+            child: PaymentSuccessScreen(
+              orderId: orderId,
+              paidWithWallet: paidWithWallet,
+            ),
           );
         },
       ),
@@ -134,8 +144,65 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      // === Rutas de Pedidos ===
+
+      // Mis Pedidos
+      GoRoute(
+        path: '/my-orders',
+        name: 'my-orders',
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const MyOrdersScreen()),
+        routes: [
+          // Detalle de Pedido
+          GoRoute(
+            path: ':id',
+            name: 'order-detail',
+            pageBuilder: (context, state) {
+              final orderId = int.parse(state.pathParameters['id']!);
+              return MaterialPage(
+                key: state.pageKey,
+                child: OrderDetailScreen(orderId: orderId),
+              );
+            },
+            routes: [
+              // Solicitud de Devolución
+              GoRoute(
+                path: 'request-return/:itemId',
+                name: 'request-return',
+                pageBuilder: (context, state) {
+                  final orderId = int.parse(state.pathParameters['id']!);
+                  final itemId = int.parse(state.pathParameters['itemId']!);
+                  return MaterialPage(
+                    key: state.pageKey,
+                    child: ReturnRequestScreen(
+                      orderId: orderId,
+                      orderItemId: itemId,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+
+      // Mis Devoluciones (lista)
+      GoRoute(
+        path: '/my-returns',
+        name: 'my-returns',
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const MyReturnsScreen()),
+      ),
+
+      // Mi Billetera
+      GoRoute(
+        path: '/my-wallet',
+        name: 'my-wallet',
+        pageBuilder: (context, state) =>
+            MaterialPage(key: state.pageKey, child: const MyWalletScreen()),
+      ),
+
       // TODO: Agregar más rutas según avancemos
-      // - Orders
       // - Wallet
       // - Returns
       // - Profile

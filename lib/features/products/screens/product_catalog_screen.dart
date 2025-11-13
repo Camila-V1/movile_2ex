@@ -80,6 +80,17 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                 style: const TextStyle(color: Colors.white),
               ),
             ),
+            onSelected: (value) {
+              if (value == 'my-orders') {
+                context.push('/my-orders');
+              } else if (value == 'my-returns') {
+                context.push('/my-returns');
+              } else if (value == 'my-wallet') {
+                context.push('/my-wallet');
+              } else if (value == 'logout') {
+                _handleLogout();
+              }
+            },
             itemBuilder: (context) => <PopupMenuEntry<String>>[
               PopupMenuItem<String>(
                 enabled: false,
@@ -100,16 +111,45 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                 ),
               ),
               const PopupMenuDivider(),
-              PopupMenuItem<String>(
+              const PopupMenuItem<String>(
+                value: 'my-orders',
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_bag, size: 20),
+                    SizedBox(width: 8),
+                    Text('Mis Pedidos'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'my-returns',
+                child: Row(
+                  children: [
+                    Icon(Icons.assignment_return, size: 20),
+                    SizedBox(width: 8),
+                    Text('Mis Devoluciones'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'my-wallet',
+                child: Row(
+                  children: [
+                    Icon(Icons.account_balance_wallet, size: 20),
+                    SizedBox(width: 8),
+                    Text('Mi Billetera'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
                 value: 'logout',
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.logout, size: 20),
                     SizedBox(width: 8),
                     Text('Cerrar Sesión'),
                   ],
                 ),
-                onTap: _handleLogout,
               ),
             ],
           ),
@@ -268,9 +308,9 @@ class _ProductCard extends StatelessWidget {
           children: [
             // Imagen del producto
             Expanded(
-              child: product.image != null
+              child: product.imageUrl != null
                   ? CachedNetworkImage(
-                      imageUrl: product.image!,
+                      imageUrl: product.imageUrl!,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       placeholder: (context, url) => Container(

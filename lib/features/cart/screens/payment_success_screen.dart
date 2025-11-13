@@ -6,8 +6,13 @@ import 'package:movile_2ex/shared/constants/app_theme.dart';
 /// Equivalente a PaymentSuccess.jsx
 class PaymentSuccessScreen extends StatelessWidget {
   final String? orderId;
+  final bool paidWithWallet;
 
-  const PaymentSuccessScreen({super.key, this.orderId});
+  const PaymentSuccessScreen({
+    super.key,
+    this.orderId,
+    this.paidWithWallet = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,8 +32,10 @@ class PaymentSuccessScreen extends StatelessWidget {
                     color: Colors.green.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.check_circle,
+                  child: Icon(
+                    paidWithWallet
+                        ? Icons.account_balance_wallet
+                        : Icons.check_circle,
                     size: 80,
                     color: Colors.green,
                   ),
@@ -48,7 +55,9 @@ class PaymentSuccessScreen extends StatelessWidget {
 
                 // Mensaje
                 Text(
-                  'Tu pedido ha sido procesado correctamente.',
+                  paidWithWallet
+                      ? 'Tu pedido ha sido pagado con tu billetera virtual.'
+                      : 'Tu pedido ha sido procesado correctamente.',
                   style: AppTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),
@@ -69,16 +78,23 @@ class PaymentSuccessScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
+                    color: paidWithWallet
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: Colors.blue),
+                      Icon(
+                        Icons.info_outline,
+                        color: paidWithWallet ? Colors.green : Colors.blue,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Recibirás un correo de confirmación con los detalles de tu pedido.',
+                          paidWithWallet
+                              ? 'El saldo se ha deducido de tu billetera. Puedes revisar el historial en "Mi Billetera".'
+                              : 'Recibirás un correo de confirmación con los detalles de tu pedido.',
                           style: AppTheme.bodyMedium,
                         ),
                       ),

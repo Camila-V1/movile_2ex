@@ -33,25 +33,31 @@ class ApiConstants {
   static const String orders = '$apiVersion/orders/';
   static const String createOrder = '$apiVersion/orders/create/';
   static String orderDetail(int id) => '$apiVersion/orders/$id/';
-  static const String myOrders = '$apiVersion/orders/my-orders/';
+  static const String myOrders =
+      '$apiVersion/orders/'; // Igual que 'orders' - el backend filtra por usuario autenticado
 
   // Stripe Payment Endpoints
   static const String createPaymentIntent =
-      '$apiVersion/payments/create-payment-intent/';
+      '$apiVersion/orders/create-payment-intent/';
   static const String confirmPayment = '$apiVersion/payments/confirm/';
   static const String paymentStatus = '$apiVersion/payments/status/';
 
   // Wallet Endpoints
   static const String wallet = '$apiVersion/wallet/';
-  static const String walletTransactions = '$apiVersion/wallet/transactions/';
+  static const String walletTransactions =
+      '$apiVersion/users/wallet-transactions/my_transactions/';
   static const String walletBalance = '$apiVersion/users/wallets/my_balance/';
 
-  // Returns Endpoints
-  static const String returns = '$apiVersion/returns/';
-  static String returnDetail(int id) => '$apiVersion/returns/$id/';
-  static const String myReturns = '$apiVersion/returns/my-returns/';
-  static String approveReturn(int id) => '$apiVersion/returns/$id/approve/';
-  static String rejectReturn(int id) => '$apiVersion/returns/$id/reject/';
+  // Returns Endpoints - Sistema Simplificado de Devoluciones
+  static const String returns = '$apiVersion/deliveries/returns/';
+  static String returnDetail(int id) => '$apiVersion/deliveries/returns/$id/';
+  static const String myReturns = '$apiVersion/deliveries/returns/my-returns/';
+  static String sendToEvaluation(int id) =>
+      '$apiVersion/deliveries/returns/$id/send-to-evaluation/';
+  static String approveReturn(int id) =>
+      '$apiVersion/deliveries/returns/$id/approve/';
+  static String rejectReturn(int id) =>
+      '$apiVersion/deliveries/returns/$id/reject/';
 
   // Reviews Endpoints
   static const String reviews = '$apiVersion/reviews/';

@@ -10,10 +10,12 @@ class OrderService {
 
   /// Crea una nueva orden a partir de los items del carrito
   /// POST /api/orders/create/
+  ///
+  /// [paymentMethod] puede ser 'stripe' o 'wallet'
+  /// Si es 'wallet', el backend validará y deducirá el saldo automáticamente
   Future<Order> createOrder({
     required List<CartItem> items,
-    required String shippingAddress,
-    double walletAmountUsed = 0.0,
+    String paymentMethod = 'stripe', // 'stripe' o 'wallet'
   }) async {
     try {
       // Preparar los items para el backend
@@ -21,29 +23,12 @@ class OrderService {
         return {
           'product_id': cartItem.product.id,
           'quantity': cartItem.quantity,
-          'price': cartItem.product.price,
         };
       }).toList();
 
-      // Calcular totales
-      final subtotal = items.fold<double>(
-        0.0,
-        (sum, item) => sum + item.subtotal,
-      );
-      final tax = subtotal * 0.10;
-      final total = subtotal + tax;
-
       final response = await _apiService.post(
         ApiConstants.createOrder,
-        data: {
-          'items': orderItems,
-          'shipping_address': shippingAddress,
-          'subtotal': subtotal,
-          'tax': tax,
-          'total': total,
-          'wallet_amount_used': walletAmountUsed,
-          'payment_method': walletAmountUsed >= total ? 'wallet' : 'stripe',
-        },
+        data: {'items': orderItems, 'payment_method': paymentMethod},
       );
 
       return Order.fromJson(response.data);
@@ -52,16 +37,13 @@ class OrderService {
     }
   }
 
-  /// Crea una sesión de checkout de Stripe para una orden
-  /// POST /api/orders/{id}/create-checkout-session/
-  Future<String> createCheckoutSession({
-    required int orderId,
-    double walletAmountUsed = 0.0,
-  }) async {
+  /// Crea un Payment Intent de Stripe para una orden (pago nativo móvil)
+  /// POST /api/orders/create-payment-intent/
+  Future<String> createPaymentIntent({required int orderId}) async {
     try {
       final response = await _apiService.post(
-        '${ApiConstants.orderDetail(orderId)}create-checkout-session/',
-        data: {'wallet_amount_used': walletAmountUsed},
+        ApiConstants.createPaymentIntent,
+        data: {'order_id': orderId, 'currency': 'usd'},
       );
 
       // El backend devuelve el client_secret de Stripe
@@ -73,7 +55,7 @@ class OrderService {
 
       return clientSecret;
     } catch (e) {
-      throw Exception('Error al crear la sesión de pago: $e');
+      throw Exception('Error al crear el payment intent: $e');
     }
   }
 

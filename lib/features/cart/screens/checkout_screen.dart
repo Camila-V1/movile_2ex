@@ -32,7 +32,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressController = TextEditingController();
   final _orderService = OrderService();
 
-  double _walletAmountToUse = 0.0;
   bool _isProcessing = false;
 
   @override
@@ -66,30 +65,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               _buildOrderSummary(cartState),
               const SizedBox(height: 24),
 
-              // Dirección de envío
-              Text('Dirección de Envío', style: AppTheme.heading3),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Dirección completa',
-                  hintText: 'Calle, número, ciudad, código postal',
-                  prefixIcon: Icon(Icons.location_on),
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Por favor ingresa tu dirección de envío';
-                  }
-                  if (value.trim().length < 10) {
-                    return 'La dirección es muy corta';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-
               // Opciones de pago con billetera
               walletBalanceAsync.when(
                 data: (walletBalance) =>
@@ -104,38 +79,87 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const SizedBox(height: 32),
 
               // Botón de pago
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isProcessing ? null : _handleCheckout,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _isProcessing
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.payment),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Realizar Pago',
-                              style: AppTheme.bodyLarge.copyWith(
+              walletBalanceAsync.when(
+                data: (walletBalance) {
+                  final canPayWithWallet =
+                      walletBalance >= cartState.totalWithTax;
+                  return SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isProcessing ? null : _handleCheckout,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: canPayWithWallet
+                            ? Colors.green
+                            : AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: _isProcessing
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                strokeWidth: 2,
                               ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  canPayWithWallet
+                                      ? Icons.account_balance_wallet
+                                      : Icons.credit_card,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  canPayWithWallet
+                                      ? 'Pagar con Billetera'
+                                      : 'Pagar con Tarjeta',
+                                  style: AppTheme.bodyLarge.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                    ),
+                  );
+                },
+                loading: () => SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const CircularProgressIndicator(),
+                  ),
+                ),
+                error: (_, __) => SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing ? null : _handleCheckout,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.credit_card),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Pagar con Tarjeta',
+                          style: AppTheme.bodyLarge.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -199,34 +223,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
               ],
             ),
-            if (_walletAmountToUse > 0) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Billetera:',
-                    style: AppTheme.bodyMedium.copyWith(color: Colors.green),
-                  ),
-                  Text(
-                    '-${AppUtils.formatPrice(_walletAmountToUse)}',
-                    style: AppTheme.bodyMedium.copyWith(color: Colors.green),
-                  ),
-                ],
-              ),
-            ],
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Total:', style: AppTheme.heading3),
                 Text(
-                  AppUtils.formatPrice(
-                    (cartState.totalWithTax - _walletAmountToUse).clamp(
-                      0,
-                      double.infinity,
-                    ),
-                  ),
+                  AppUtils.formatPrice(cartState.totalWithTax),
                   style: AppTheme.heading3.copyWith(
                     color: AppTheme.primaryColor,
                     fontWeight: FontWeight.bold,
@@ -242,6 +245,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   /// Sección de billetera
   Widget _buildWalletSection(double walletBalance, CartState cartState) {
+    final bool canPayWithWallet = walletBalance >= cartState.totalWithTax;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -250,49 +255,102 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.account_balance_wallet, color: Colors.green),
+                Icon(
+                  Icons.account_balance_wallet,
+                  color: canPayWithWallet ? Colors.green : Colors.grey,
+                ),
                 const SizedBox(width: 8),
-                Text('Usar Billetera', style: AppTheme.heading3),
+                Text('Billetera Virtual', style: AppTheme.heading3),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              'Saldo disponible: ${AppUtils.formatPrice(walletBalance)}',
-              style: AppTheme.bodyMedium.copyWith(color: Colors.grey[600]),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Saldo disponible:',
+                  style: AppTheme.bodyMedium.copyWith(color: Colors.grey[600]),
+                ),
+                Text(
+                  AppUtils.formatPrice(walletBalance),
+                  style: AppTheme.bodyLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: canPayWithWallet ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
             ),
-            if (walletBalance > 0) ...[
-              const SizedBox(height: 16),
-              Slider(
-                value: _walletAmountToUse,
-                min: 0,
-                max: walletBalance.clamp(0, cartState.totalWithTax),
-                divisions: 20,
-                label: AppUtils.formatPrice(_walletAmountToUse),
-                onChanged: (value) {
-                  setState(() {
-                    _walletAmountToUse = value;
-                  });
-                },
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total a pagar:',
+                  style: AppTheme.bodyMedium.copyWith(color: Colors.grey[600]),
+                ),
+                Text(
+                  AppUtils.formatPrice(cartState.totalWithTax),
+                  style: AppTheme.bodyLarge.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (canPayWithWallet) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '¡Puedes pagar con tu billetera!',
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: Colors.green[800],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Usar: ${AppUtils.formatPrice(_walletAmountToUse)}',
-                    style: AppTheme.bodyMedium,
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _walletAmountToUse = walletBalance.clamp(
-                          0,
-                          cartState.totalWithTax,
-                        );
-                      });
-                    },
-                    child: const Text('Usar todo'),
-                  ),
-                ],
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.orange,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Saldo insuficiente. Necesitas ${AppUtils.formatPrice(cartState.totalWithTax - walletBalance)} más.',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: Colors.orange[800],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -303,9 +361,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   /// Sección de método de pago
   Widget _buildPaymentMethodSection() {
-    final cartState = ref.read(cartProvider);
-    final remainingAmount = cartState.totalWithTax - _walletAmountToUse;
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -314,26 +369,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           children: [
             Text('Método de Pago', style: AppTheme.heading3),
             const SizedBox(height: 12),
-            if (remainingAmount > 0) ...[
-              ListTile(
-                leading: const Icon(Icons.credit_card, color: Colors.blue),
-                title: const Text('Tarjeta de crédito/débito'),
-                subtitle: const Text('Pago seguro con Stripe'),
-                contentPadding: EdgeInsets.zero,
+            Text(
+              'Al confirmar el pago, se utilizará automáticamente el método apropiado según tu saldo de billetera.',
+              style: AppTheme.bodySmall.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(
+                Icons.account_balance_wallet,
+                color: Colors.green,
               ),
-            ] else ...[
-              ListTile(
-                leading: const Icon(
-                  Icons.account_balance_wallet,
-                  color: Colors.green,
-                ),
-                title: const Text('Pago con Billetera'),
-                subtitle: const Text(
-                  'El pago se cubrirá completamente con tu billetera',
-                ),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ],
+              title: const Text('Billetera Virtual'),
+              subtitle: const Text('Pago instantáneo con tu saldo'),
+              contentPadding: EdgeInsets.zero,
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.credit_card, color: Colors.blue),
+              title: const Text('Tarjeta de crédito/débito'),
+              subtitle: const Text('Pago seguro con Stripe'),
+              contentPadding: EdgeInsets.zero,
+            ),
           ],
         ),
       ),
@@ -352,88 +408,128 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final cartState = ref.read(cartProvider);
-      final shippingAddress = _addressController.text.trim();
+      final walletService = WalletService();
 
-      // 1. Crear la orden en el backend
+      // Determinar método de pago basado en saldo de billetera
+      final walletBalance = await walletService.getBalance();
+      final totalAmount = cartState.totalWithTax;
+      final bool payWithWallet = walletBalance >= totalAmount;
+
+      // Validar saldo si se intenta pagar con billetera
+      if (payWithWallet) {
+        final hasEnough = await walletService.hasEnoughBalance(totalAmount);
+        if (!hasEnough) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Saldo insuficiente. Necesitas ${AppUtils.formatPrice(totalAmount)}, tienes ${AppUtils.formatPrice(walletBalance)}',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // Crear la orden con el método de pago apropiado
       final order = await _orderService.createOrder(
         items: cartState.items,
-        shippingAddress: shippingAddress,
-        walletAmountUsed: _walletAmountToUse,
+        paymentMethod: payWithWallet ? 'wallet' : 'stripe',
       );
 
-      final remainingAmount = cartState.totalWithTax - _walletAmountToUse;
+      // Si se pagó con billetera, el backend ya procesó todo
+      if (order.paidWithWallet || order.status.toUpperCase() == 'PAID') {
+        // Limpiar carrito
+        await ref.read(cartProvider.notifier).clearCart();
 
-      // 2. Si el monto restante es > 0, procesar pago con Stripe
-      if (remainingAmount > 0) {
-        // Obtener el client_secret de Stripe
-        final clientSecret = await _orderService.createCheckoutSession(
-          orderId: order.id,
-          walletAmountUsed: _walletAmountToUse,
-        );
-
-        // Inicializar Stripe Payment Sheet
-        await stripe.Stripe.instance.initPaymentSheet(
-          paymentSheetParameters: stripe.SetupPaymentSheetParameters(
-            merchantDisplayName: 'SmartSales',
-            paymentIntentClientSecret: clientSecret,
-            style: ThemeMode.light,
-            billingDetails: stripe.BillingDetails(
-              address: stripe.Address(
-                line1: shippingAddress,
-                line2: '',
-                city: '',
-                state: '',
-                postalCode: '',
-                country: 'BO',
-              ),
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Pago exitoso con billetera!'),
+              backgroundColor: Colors.green,
             ),
+          );
+          context.go(
+            '/payment-success?orderId=${order.id}&paidWithWallet=true',
+          );
+        }
+        return;
+      }
+
+      // Si NO se pagó con billetera, procesar con Stripe
+      final clientSecret = await _orderService.createPaymentIntent(
+        orderId: order.id,
+      );
+
+      // Inicializar la hoja de pago de Stripe
+      await stripe.Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
+          paymentIntentClientSecret: clientSecret,
+          merchantDisplayName: 'Smart Sales',
+          style: ThemeMode.light,
+        ),
+      );
+
+      // Mostrar la hoja de pago nativa
+      await stripe.Stripe.instance.presentPaymentSheet();
+
+      // Si llegamos aquí, el pago con Stripe fue exitoso
+      await ref.read(cartProvider.notifier).clearCart();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Pago exitoso!'),
+            backgroundColor: Colors.green,
           ),
         );
-
-        // Presentar el Payment Sheet
-        await stripe.Stripe.instance.presentPaymentSheet();
-
-        // Si llegamos aquí, el pago fue exitoso
-        // Limpiar el carrito
-        await ref.read(cartProvider.notifier).clearCart();
-
-        // Navegar a pantalla de éxito
-        if (mounted) {
-          context.go('/payment-success?orderId=${order.id}');
-        }
-      } else {
-        // Pago completo con billetera
-        await ref.read(cartProvider.notifier).clearCart();
-
-        if (mounted) {
-          context.go('/payment-success?orderId=${order.id}');
-        }
+        context.go('/payment-success?orderId=${order.id}');
       }
     } on stripe.StripeException catch (e) {
       // Error de Stripe
       if (e.error.code == stripe.FailureCode.Canceled) {
         // Usuario canceló el pago
         if (mounted) {
-          context.go('/payment-cancelled');
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Pago cancelado')));
         }
       } else {
         // Otro error de Stripe
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error en el pago: ${e.error.message}'),
+              content: Text('Error de pago: ${e.error.message}'),
               backgroundColor: Colors.red,
             ),
           );
         }
       }
     } catch (e) {
-      // Error general
+      // Error general (incluye errores de backend como "Saldo insuficiente")
       if (mounted) {
+        final errorMessage = e.toString();
+        // Extraer mensaje del backend si está presente
+        String displayMessage = 'Error al procesar el pedido';
+        if (errorMessage.contains('Saldo insuficiente')) {
+          displayMessage = errorMessage.replaceAll(
+            'Exception: Error al crear la orden: ',
+            '',
+          );
+        } else if (errorMessage.contains('Stock insuficiente')) {
+          displayMessage = errorMessage.replaceAll(
+            'Exception: Error al crear la orden: ',
+            '',
+          );
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al procesar el pedido: $e'),
+            content: Text(displayMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }

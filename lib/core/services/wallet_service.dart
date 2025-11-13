@@ -18,11 +18,20 @@ class WalletService {
   }
 
   /// Obtiene el saldo de la billetera
-  /// GET /api/wallet/balance/
+  /// GET /api/users/wallets/my_balance/
   Future<double> getBalance() async {
     try {
       final response = await _apiService.get(ApiConstants.walletBalance);
-      return (response.data['balance'] as num).toDouble();
+      final balance = response.data['balance'];
+
+      // El backend puede enviar el balance como String o como número
+      if (balance is String) {
+        return double.parse(balance);
+      } else if (balance is num) {
+        return balance.toDouble();
+      } else {
+        return 0.0;
+      }
     } catch (e) {
       throw Exception('Error al obtener el saldo: $e');
     }
@@ -53,6 +62,16 @@ class WalletService {
       return Wallet.fromJson(response.data);
     } catch (e) {
       throw Exception('Error al añadir fondos: $e');
+    }
+  }
+
+  /// Verifica si el usuario tiene saldo suficiente para pagar
+  Future<bool> hasEnoughBalance(double amount) async {
+    try {
+      final balance = await getBalance();
+      return balance >= amount;
+    } catch (e) {
+      return false;
     }
   }
 }

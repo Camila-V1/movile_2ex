@@ -38,9 +38,9 @@ class ProductDetailScreen extends ConsumerWidget {
               // Imagen del producto
               AspectRatio(
                 aspectRatio: 1,
-                child: product.image != null
+                child: product.imageUrl != null
                     ? CachedNetworkImage(
-                        imageUrl: product.image!,
+                        imageUrl: product.imageUrl!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (context, url) => Container(
