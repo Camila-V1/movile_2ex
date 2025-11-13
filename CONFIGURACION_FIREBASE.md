@@ -11,36 +11,19 @@ El sistema de notificaciones push está **completamente integrado** en el códig
 - ✅ Integración en login para registrar token FCM
 - ✅ Backend ya configurado para enviar notificaciones
 
-## ⚠️ Lo que FALTA para que funcione
+## ✅ Firebase YA ESTÁ CONFIGURADO
 
-Solo necesitas configurar Firebase Console y agregar el archivo `google-services.json`:
+El proyecto **YA TIENE** el archivo `google-services.json` configurado correctamente:
 
-### Paso 1: Crear proyecto en Firebase Console
+- ✅ Proyecto Firebase: `smartsales365-ecommerc`
+- ✅ Package name: `com.example.movile_2ex`
+- ✅ Archivo ubicado en: `android/app/google-services.json`
 
-1. Ve a **Firebase Console**: https://console.firebase.google.com/
-2. Click en **"Agregar proyecto"**
-3. Nombre del proyecto: `smartsales365-ecommerce` (o el que prefieras)
-4. **Deshabilita Google Analytics** (no lo necesitamos)
-5. Click en **"Crear proyecto"**
-6. Espera 30 segundos → Click en **"Continuar"**
+**¡No necesitas hacer nada más en Firebase Console!**
 
-### Paso 2: Agregar App Android a Firebase
+### Paso 1: Verificar que todo funcione
 
-1. En el panel principal, click en el ícono **Android** (robot verde)
-2. Completa los datos:
-   - **Nombre del paquete Android**: `com.example.movile_2ex`
-   - **Apodo de la app**: `SmartSales365 Mobile`
-   - **SHA-1**: Dejar en blanco
-3. Click en **"Registrar app"**
-4. **Descarga** el archivo `google-services.json`
-5. **IMPORTANTE**: Copia el archivo descargado a:
-   ```
-   android/app/google-services.json
-   ```
-
-### Paso 3: Verificar la configuración
-
-Una vez copiado el archivo, ejecuta:
+Ejecuta la aplicación:
 
 ```bash
 flutter clean
@@ -62,7 +45,7 @@ Deberías ver en los logs:
 ✅ [PUSH] PushNotificationService inicializado correctamente
 ```
 
-### Paso 4: Probar notificaciones
+### Paso 2: Probar notificaciones
 
 1. **Haz login** en la app
 2. Verifica que el token se registre correctamente
@@ -84,12 +67,12 @@ El sistema tiene logs exhaustivos con prefijos:
 
 ## 📋 Checklist de verificación
 
-- [ ] Proyecto creado en Firebase Console
-- [ ] App Android registrada en Firebase
-- [ ] Archivo `google-services.json` descargado
-- [ ] Archivo copiado a `android/app/google-services.json`
-- [ ] Ejecutado `flutter clean && flutter pub get`
+- [x] Proyecto creado en Firebase Console (`smartsales365-ecommerc`)
+- [x] App Android registrada en Firebase
+- [x] Archivo `google-services.json` en `android/app/`
+- [x] Dependencias instaladas con `flutter pub get`
 - [ ] App ejecutada con `flutter run`
+- [ ] Login realizado exitosamente
 - [ ] Logs muestran "✅ Firebase inicializado"
 - [ ] Logs muestran "📱 FCM Token obtenido"
 - [ ] Logs muestran "✅ Token registrado en backend"
