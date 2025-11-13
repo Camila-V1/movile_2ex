@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/services/push_notification_service.dart';
+import '../../../core/api/api_service.dart';
 import '../../../shared/constants/app_theme.dart';
 import '../../../shared/utils/app_utils.dart';
 
@@ -27,6 +29,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  /// Inicializa el servicio de notificaciones push después del login
+  Future<void> _initializePushNotifications() async {
+    try {
+      final apiService = ApiService();
+      await PushNotificationService.initialize(apiService);
+      print('✅ [LOGIN] Push notifications inicializadas correctamente');
+    } catch (e) {
+      print('⚠️ [LOGIN] Error inicializando push notifications: $e');
+      // No bloqueamos el login si falla la inicialización de notificaciones
+    }
+  }
+
   Future<void> _handleLogin() async {
     print('🔴 LOGIN: _handleLogin() ejecutado');
     // Limpiar error previo
@@ -43,8 +57,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       if (success) {
-        // Login exitoso, el router redirigirá automáticamente
-        print('🔴 LOGIN: Login exitoso, navegando a /');
+        // Login exitoso, inicializar push notifications
+        print('🔴 LOGIN: Login exitoso, inicializando push notifications...');
+        _initializePushNotifications();
+        
+        // El router redirigirá automáticamente
+        print('🔴 LOGIN: Navegando a /');
         context.go('/');
       } else {
         // Mostrar error
