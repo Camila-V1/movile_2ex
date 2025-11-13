@@ -55,12 +55,19 @@ class _VoiceButtonState extends State<VoiceButton>
   }
 
   Future<void> _startListening() async {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🔘 [VOICE-BUTTON] Botón presionado');
+    
     if (!_isInitialized) {
+      print('❌ [VOICE-BUTTON] Servicio no inicializado');
       _showError('Servicio de voz no disponible');
       return;
     }
 
-    if (_isListening) return;
+    if (_isListening) {
+      print('⚠️ [VOICE-BUTTON] Ya está escuchando');
+      return;
+    }
 
     // ✅ Verificar mounted antes de setState
     if (!mounted) return;
@@ -70,6 +77,8 @@ class _VoiceButtonState extends State<VoiceButton>
       _listeningText = 'Escuchando...';
     });
 
+    print('🔊 [VOICE-BUTTON] Reproduciendo TTS: "¿Qué deseas hacer?"');
+    
     // ✅ Esperar a que termine de hablar ANTES de escuchar
     await _voiceService.speak('¿Qué deseas hacer?');
     await Future.delayed(
@@ -79,7 +88,9 @@ class _VoiceButtonState extends State<VoiceButton>
     // ✅ Detener TTS explícitamente antes de escuchar
     await _voiceService.stopSpeaking();
 
+    print('🎤 [VOICE-BUTTON] Llamando a voiceService.listen()...');
     final command = await _voiceService.listen();
+    print('📝 [VOICE-BUTTON] Comando recibido: "$command"');
 
     // ✅ Verificar mounted antes de setState
     if (!mounted) return;
@@ -89,6 +100,7 @@ class _VoiceButtonState extends State<VoiceButton>
     });
 
     if (command == null || command.isEmpty) {
+      print('⚠️ [VOICE-BUTTON] Comando vacío o nulo');
       await _voiceService.speak('No escuché nada. Intenta de nuevo.');
       return;
     }
@@ -100,8 +112,16 @@ class _VoiceButtonState extends State<VoiceButton>
       _listeningText = 'Procesando: "$command"';
     });
 
+    print('⚙️ [VOICE-BUTTON] Enviando comando al processor: "$command"');
+    
     // Procesar comando
     final result = await widget.commandProcessor.processCommand(command);
+    
+    print('📊 [VOICE-BUTTON] Resultado del processor:');
+    print('   - Success: ${result.success}');
+    print('   - Action: ${result.action}');
+    print('   - Message: ${result.message}');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // ✅ Si necesita especificar producto, escuchar de nuevo
     if (result.action == VoiceAction.needsProduct) {

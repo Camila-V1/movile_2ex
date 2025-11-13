@@ -68,13 +68,18 @@ class VoiceService {
 
   /// Escuchar comando de voz
   Future<String?> listen() async {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🎤 [VOZ-SERVICE] INICIANDO ESCUCHA...');
+    
     if (!_isAvailable) {
-      print('❌ Servicio de voz no disponible');
+      print('❌ [VOZ-SERVICE] Servicio de voz no disponible');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return null;
     }
 
     if (_isListening) {
-      print('⚠️ Ya está escuchando');
+      print('⚠️ [VOZ-SERVICE] Ya está escuchando');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return null;
     }
 
@@ -84,6 +89,7 @@ class VoiceService {
 
     try {
       _isListening = true;
+      print('📡 [VOZ-SERVICE] Micrófono activado - Locale: $_selectedLocaleId');
 
       await _speech.listen(
         onResult: (result) {
@@ -93,9 +99,9 @@ class VoiceService {
           // ✅ Actualizar con el resultado final cuando esté disponible
           if (result.finalResult) {
             recognizedText = result.recognizedWords;
-            print('🎤 Reconocido FINAL: $recognizedText');
+            print('✅ [VOZ-SERVICE] TEXTO FINAL: "$recognizedText"');
           } else {
-            print('🎤 Reconocido parcial: $lastPartialResult');
+            print('⏳ [VOZ-SERVICE] Texto parcial: "$lastPartialResult"');
           }
         },
         listenFor: const Duration(seconds: 8), // ✅ 8 segundos (más realista)
@@ -112,6 +118,10 @@ class VoiceService {
         // 9 segundos max
         await Future.delayed(const Duration(milliseconds: 100));
         waitCount++;
+        
+        if (waitCount % 10 == 0) {
+          print('⏱️ [VOZ-SERVICE] Esperando... ${waitCount / 10}s');
+        }
       }
 
       // ✅ Si no hay resultado final, usar el último parcial
@@ -119,24 +129,33 @@ class VoiceService {
           lastPartialResult != null &&
           lastPartialResult!.isNotEmpty) {
         recognizedText = lastPartialResult;
-        print('🎤 Usando resultado parcial: $recognizedText');
+        print('⚠️ [VOZ-SERVICE] Usando resultado parcial como final: "$recognizedText"');
       }
 
       // ✅ Si no recibió nada, informar
       if (!hasReceivedResult ||
           recognizedText == null ||
           recognizedText!.isEmpty) {
-        print('⚠️ No se reconoció ningún texto');
+        print('❌ [VOZ-SERVICE] No se reconoció ningún texto');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         return null;
       }
 
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🎯 [VOZ-SERVICE] TEXTO RECONOCIDO: "$recognizedText"');
+      print('   Longitud: ${recognizedText!.length} caracteres');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       return recognizedText;
     } catch (e) {
-      print('❌ Error escuchando: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('❌ [VOZ-SERVICE] ERROR: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return null;
     } finally {
       _isListening = false;
       await _speech.stop(); // ✅ Asegurar que se detenga
+      print('🛑 [VOZ-SERVICE] Micrófono desactivado');
     }
   }
 

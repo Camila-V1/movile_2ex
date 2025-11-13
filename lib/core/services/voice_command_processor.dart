@@ -143,13 +143,24 @@ class VoiceCommandProcessor {
         return await _handleIncompleteCommand(command);
       }
 
-      print('🤖 Enviando comando al backend NLP: "$command"');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('🎤 [VOZ-NLP] COMANDO RECIBIDO: "$command"');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       // ✅ Llamar al endpoint NLP del backend con 'prompt' (no 'text')
+      print('📤 [VOZ-NLP] ENVIANDO AL BACKEND:');
+      print('   URL: /api/orders/cart/add-natural-language/');
+      print('   Body: {"prompt": "$command"}');
+      
       final response = await _apiService.post(
         '/api/orders/cart/add-natural-language/',
         data: {'prompt': command},
       );
+
+      print('📥 [VOZ-NLP] RESPUESTA DEL BACKEND:');
+      print('   Status Code: ${response.statusCode}');
+      print('   Data Type: ${response.data.runtimeType}');
+      print('   Data: ${response.data}');
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -157,8 +168,22 @@ class VoiceCommandProcessor {
         // ✅ Leer 'items' del backend (no 'added_items')
         final items = data['items'] as List<dynamic>?;
 
+        print('🔍 [VOZ-NLP] PROCESANDO RESPUESTA:');
+        print('   Campo "items" existe: ${items != null}');
+        print('   Cantidad de items: ${items?.length ?? 0}');
+        
         if (items != null && items.isNotEmpty) {
-          print('✅ Backend validó ${items.length} items para agregar');
+          print('✅ [VOZ-NLP] Backend validó ${items.length} items');
+          
+          for (var i = 0; i < items.length; i++) {
+            final item = items[i];
+            print('   Item ${i + 1}:');
+            print('     - product_id: ${item['product_id']}');
+            print('     - name: ${item['name']}');
+            print('     - quantity: ${item['quantity']}');
+            print('     - price: ${item['price']}');
+          }
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
           return VoiceCommandResult(
             success: true,
@@ -170,7 +195,8 @@ class VoiceCommandProcessor {
           );
         } else {
           // No se encontraron productos
-          print('⚠️ No se encontraron productos');
+          print('⚠️ [VOZ-NLP] No se encontraron productos en la respuesta');
+          print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
           return VoiceCommandResult(
             success: false,
@@ -182,13 +208,18 @@ class VoiceCommandProcessor {
         }
       }
 
+      print('❌ [VOZ-NLP] Error: Status code diferente de 200');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       return VoiceCommandResult(
         success: false,
         action: VoiceAction.addToCart,
         message: 'Error al procesar el comando',
       );
     } catch (e) {
-      print('❌ Error en _handleAddToCart: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('❌ [VOZ-NLP] EXCEPCIÓN: $e');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return VoiceCommandResult(
         success: false,
         action: VoiceAction.addToCart,
