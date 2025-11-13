@@ -1,4 +1,4 @@
-﻿import '../api/api_service.dart';
+import '../api/api_service.dart';
 import '../models/product.dart';
 
 class VoiceCommandProcessor {
@@ -8,14 +8,14 @@ class VoiceCommandProcessor {
 
   /// Procesar comando de voz
   Future<VoiceCommandResult> processCommand(String command) async {
-    print(' Procesando comando: "$command"');
+    print('🔍 Procesando comando: "$command"');
 
     // Normalizar comando (minúsculas, sin tildes)
     final normalizedCommand = _normalize(command);
 
     // 1. Detectar intención
     if (_isAddToCartCommand(normalizedCommand)) {
-      return await _handleAddToCart(command); // Enviar comando original
+      return await _handleAddToCart(normalizedCommand);
     } else if (_isSearchCommand(normalizedCommand)) {
       return await _handleSearch(normalizedCommand);
     } else if (_isShowCartCommand(normalizedCommand)) {
@@ -46,10 +46,9 @@ class VoiceCommandProcessor {
       'añadir',
       'agregar',
       'anadir',
+      'agregar',
       'añade',
       'agrega',
-      'pon',
-      'dame',
     ];
     final cartKeywords = ['carrito', 'carro', 'cesta'];
 
@@ -94,51 +93,45 @@ class VoiceCommandProcessor {
         cartKeywords.any((word) => command.contains(word));
   }
 
-  /// Manejar comando de añadir al carrito usando NLP del backend
+  /// Manejar comando de añadir al carrito
   Future<VoiceCommandResult> _handleAddToCart(String command) async {
     try {
-      print('🤖 Enviando comando al backend NLP: "$command"');
+      // Extraer nombre del producto
+      final productName = _extractProductName(command);
 
-      // ✅ Llamar al endpoint NLP del backend con 'prompt' (no 'text')
-      final response = await _apiService.post(
-        '/api/orders/cart/add-natural-language/',
-        data: {'prompt': command},
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-
-        // ✅ Leer 'items' del backend (no 'added_items')
-        final items = data['items'] as List<dynamic>?;
-
-        if (items != null && items.isNotEmpty) {
-          print('✅ Backend validó ${items.length} items para agregar');
-
-          return VoiceCommandResult(
-            success: true,
-            action: VoiceAction.addToCartNLP,
-            message: data['message'] ?? 'Productos listos para agregar',
-            addedItems: items
-                .map((item) => CartItemFromNLP.fromJson(item))
-                .toList(),
-          );
-        } else {
-          // No se encontraron productos
-          print('⚠️ No se encontraron productos');
-
-          return VoiceCommandResult(
-            success: false,
-            action: VoiceAction.addToCart,
-            message: data['message'] ??
-                'No encontré productos con ese nombre. Intenta con otro',
-          );
-        }
+      if (productName.isEmpty) {
+        return VoiceCommandResult(
+          success: false,
+          action: VoiceAction.addToCart,
+          message:
+              'No pude identificar el producto. Intenta decir: "añadir laptop al carrito"',
+        );
       }
 
+      print('🔍 Buscando producto: "$productName"');
+
+      // Buscar producto por nombre
+      final product = await _searchProduct(productName);
+
+      if (product == null) {
+        return VoiceCommandResult(
+          success: false,
+          action: VoiceAction.addToCart,
+          message:
+              'No encontré el producto "$productName". Intenta con otro nombre.',
+        );
+      }
+
+      // Extraer cantidad (por defecto 1)
+      final quantity = _extractQuantity(command);
+
       return VoiceCommandResult(
-        success: false,
+        success: true,
         action: VoiceAction.addToCart,
-        message: 'Error al procesar el comando',
+        message: 'Añadiendo ${product.name} al carrito',
+        productId: product.id,
+        quantity: quantity,
+        product: product,
       );
     } catch (e) {
       print('❌ Error en _handleAddToCart: $e');
@@ -170,6 +163,76 @@ class VoiceCommandProcessor {
     );
   }
 
+  /// Buscar producto en el API
+  Future<Product?> _searchProduct(String productName) async {
+    try {
+      final response = await _apiService.get('/products/');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> productsJson = response.data;
+        final products = productsJson
+            .map((json) => Product.fromJson(json))
+            .toList();
+
+        if (products.isEmpty) {
+          return null;
+        }
+
+        // Buscar coincidencia exacta o parcial
+        final normalizedSearch = _normalize(productName);
+
+        for (var product in products) {
+          final normalizedName = _normalize(product.name);
+          if (normalizedName.contains(normalizedSearch) ||
+              normalizedSearch.contains(normalizedName)) {
+            return product;
+          }
+        }
+
+        // Si no hay coincidencia exacta, devolver el primero
+        return products.first;
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error buscando producto: $e');
+      return null;
+    }
+  }
+
+  /// Extraer nombre del producto del comando
+  String _extractProductName(String command) {
+    // Remover palabras de comando
+    final wordsToRemove = [
+      'añadir',
+      'agregar',
+      'anadir',
+      'añade',
+      'agrega',
+      'al',
+      'el',
+      'la',
+      'los',
+      'las',
+      'un',
+      'una',
+      'carrito',
+      'carro',
+      'cesta',
+      'por',
+      'favor',
+      'quiero',
+      'dame',
+    ];
+
+    List<String> words = command.split(' ');
+    words = words
+        .where((word) => !wordsToRemove.contains(word) && !_isNumber(word))
+        .toList();
+
+    return words.join(' ').trim();
+  }
+
   /// Extraer término de búsqueda
   String _extractSearchTerm(String command) {
     final wordsToRemove = [
@@ -186,6 +249,50 @@ class VoiceCommandProcessor {
     return words.join(' ').trim();
   }
 
+  /// Extraer cantidad del comando
+  int _extractQuantity(String command) {
+    final words = command.split(' ');
+
+    for (var word in words) {
+      // Buscar números
+      if (_isNumber(word)) {
+        return int.tryParse(word) ?? 1;
+      }
+
+      // Buscar números en palabras
+      switch (word) {
+        case 'uno':
+        case 'una':
+          return 1;
+        case 'dos':
+          return 2;
+        case 'tres':
+          return 3;
+        case 'cuatro':
+          return 4;
+        case 'cinco':
+          return 5;
+        case 'seis':
+          return 6;
+        case 'siete':
+          return 7;
+        case 'ocho':
+          return 8;
+        case 'nueve':
+          return 9;
+        case 'diez':
+          return 10;
+      }
+    }
+
+    return 1; // Por defecto 1
+  }
+
+  /// Verificar si es número
+  bool _isNumber(String word) {
+    return int.tryParse(word) != null;
+  }
+
   /// Normalizar texto (minúsculas, sin tildes)
   String _normalize(String text) {
     return text
@@ -200,15 +307,7 @@ class VoiceCommandProcessor {
 }
 
 /// Enum de acciones de voz
-enum VoiceAction {
-  addToCart,
-  addToCartNLP, // Nuevo: cuando el backend ya añadió al carrito
-  confirmProduct, // Nuevo: cuando necesita confirmación del usuario
-  search,
-  showCart,
-  clearCart,
-  unknown
-}
+enum VoiceAction { addToCart, search, showCart, clearCart, unknown }
 
 /// Resultado del procesamiento de comando
 class VoiceCommandResult {
@@ -219,8 +318,6 @@ class VoiceCommandResult {
   final int? quantity;
   final Product? product;
   final String? searchTerm;
-  final List<CartItemFromNLP>? addedItems; // Nuevo
-  final List<Product>? suggestedProducts; // Nuevo
 
   VoiceCommandResult({
     required this.success,
@@ -230,31 +327,5 @@ class VoiceCommandResult {
     this.quantity,
     this.product,
     this.searchTerm,
-    this.addedItems,
-    this.suggestedProducts,
   });
-}
-
-/// Item del carrito retornado por NLP
-class CartItemFromNLP {
-  final int productId;
-  final String name;
-  final int quantity;
-  final double price;
-
-  CartItemFromNLP({
-    required this.productId,
-    required this.name,
-    required this.quantity,
-    required this.price,
-  });
-
-  factory CartItemFromNLP.fromJson(Map<String, dynamic> json) {
-    return CartItemFromNLP(
-      productId: json['product_id'] ?? json['id'],
-      name: json['name'] ?? '',
-      quantity: json['quantity'] ?? 1,
-      price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
-    );
-  }
 }

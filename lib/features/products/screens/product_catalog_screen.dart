@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -12,28 +12,29 @@ import '../../../core/models/category.dart';
 import '../../../core/widgets/voice_button.dart';
 import '../../../shared/constants/app_theme.dart';
 import '../../../shared/widgets/loading_indicator.dart';
+import '../../../shared/widgets/recommendations_carousel.dart';
 
 /// Provider para la lista de productos
 final productsProvider = FutureProvider.autoDispose<List<Product>>((ref) async {
-  // Mantener el provider vivo mientras el widget esté montado
+  // Mantener el provider vivo mientras el widget estÃ© montado
   ref.keepAlive();
 
   final productService = ProductService();
   return await productService.getProducts();
 });
 
-/// Provider para categorías
+/// Provider para categorÃ­as
 final categoriesProvider = FutureProvider.autoDispose<List<Category>>((
   ref,
 ) async {
-  // Mantener el provider vivo mientras el widget esté montado
+  // Mantener el provider vivo mientras el widget estÃ© montado
   ref.keepAlive();
 
   final productService = ProductService();
   return await productService.getCategories();
 });
 
-/// Pantalla de Catálogo de Productos
+/// Pantalla de CatÃ¡logo de Productos
 /// Equivalente a ProductCatalog.jsx del proyecto React
 class ProductCatalogScreen extends ConsumerStatefulWidget {
   const ProductCatalogScreen({super.key});
@@ -68,7 +69,8 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
   }
 
   void _handleVoiceCommand(VoiceCommandResult result) {
-    if (!result.success) {
+    // ✅ Manejar casos donde success=false pero hay acción especial
+    if (!result.success && result.action != VoiceAction.confirmProduct) {
       _showMessage(result.message, isError: true);
       return;
     }
@@ -76,6 +78,16 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
     switch (result.action) {
       case VoiceAction.addToCart:
         _addToCartFromVoice(result.product!, result.quantity!);
+        break;
+
+      case VoiceAction.addToCartNLP:
+        // ✅ NUEVO: El backend validó los items, ahora agregar al carrito
+        _handleNLPCartAddition(result);
+        break;
+
+      case VoiceAction.confirmProduct:
+        // Mostrar diálogo de confirmación (si hay múltiples productos)
+        _showProductConfirmation(result.suggestedProducts ?? []);
         break;
 
       case VoiceAction.search:
@@ -98,6 +110,76 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
     }
   }
 
+  // ✅ NUEVO MÉTODO: Manejar adición desde NLP
+  void _handleNLPCartAddition(VoiceCommandResult result) {
+    if (result.addedItems == null || result.addedItems!.isEmpty) {
+      _showMessage('No se añadieron productos', isError: true);
+      return;
+    }
+
+    // Iterar cada item y agregarlo al carrito usando el provider
+    for (var item in result.addedItems!) {
+      try {
+        // Buscar el producto completo para tener toda la info
+        final product = Product(
+          id: item.productId,
+          name: item.name,
+          price: item.price,
+          description: '',
+          stock: 999, // Stock temporal
+          categoryId: 1,
+          isActive: true,
+        );
+
+        ref.read(cartProvider.notifier).addItem(product, quantity: item.quantity);
+      } catch (e) {
+        print('❌ Error agregando item ${item.name}: $e');
+      }
+    }
+
+    // Mostrar mensaje de éxito
+    final count = result.addedItems!.length;
+    final totalQty = result.addedItems!.fold(0, (sum, item) => sum + item.quantity);
+    
+    _showMessage(
+      '✅ $count producto(s) añadido(s) al carrito (x$totalQty)',
+      isError: false,
+    );
+  }
+
+  // ✅ NUEVO MÉTODO: Mostrar confirmación si hay múltiples productos
+  void _showProductConfirmation(List<Product> products) {
+    if (products.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar producto'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('¿Cuál de estos productos quieres agregar?'),
+            const SizedBox(height: 16),
+            ...products.take(3).map((product) => ListTile(
+              title: Text(product.name),
+              subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
+              onTap: () {
+                Navigator.pop(context);
+                _addToCartFromVoice(product, 1);
+              },
+            )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addToCartFromVoice(Product product, int quantity) {
     if (product.isOutOfStock) {
       _showMessage('Producto agotado', isError: true);
@@ -107,7 +189,7 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
     ref.read(cartProvider.notifier).addItem(product, quantity: quantity);
 
     _showMessage(
-      '✅ ${product.name} añadido al carrito (x$quantity)',
+      'âœ… ${product.name} aÃ±adido al carrito (x$quantity)',
       isError: false,
     );
   }
@@ -134,7 +216,7 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
       appBar: AppBar(
         title: const Text('Smart Sales'),
         actions: [
-          // Ícono del carrito con badge
+          // Ãcono del carrito con badge
           const _CartIconButton(),
           const SizedBox(width: 8),
 
@@ -214,7 +296,7 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                   children: [
                     Icon(Icons.logout, size: 20),
                     SizedBox(width: 8),
-                    Text('Cerrar Sesión'),
+                    Text('Cerrar SesiÃ³n'),
                   ],
                 ),
               ),
@@ -224,7 +306,7 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
       ),
       body: Column(
         children: [
-          // Barra de búsqueda
+          // Barra de bÃºsqueda
           Padding(
             padding: const EdgeInsets.all(AppTheme.paddingMD),
             child: TextField(
@@ -246,7 +328,7 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
             ),
           ),
 
-          // Filtro de categorías
+          // Filtro de categorÃ­as
           categoriesAsync.when(
             data: (categories) => SizedBox(
               height: 50,
@@ -292,49 +374,21 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
             error: (error, stack) => const SizedBox.shrink(),
           ),
 
-          const Divider(),
-
-          // Banner de instrucciones de voz
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Di: "Añadir laptop al carrito" o "Buscar mouse"',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Lista de productos
+          // Lista de productos con recomendaciones
           Expanded(
             child: productsAsync.when(
               data: (products) {
                 // Filtrar productos
                 var filteredProducts = products;
 
-                // Filtrar por categoría
+                // Filtrar por categorÃ­a
                 if (_selectedCategoryId != null) {
                   filteredProducts = filteredProducts
                       .where((p) => p.categoryId == _selectedCategoryId)
                       .toList();
                 }
 
-                // Filtrar por búsqueda
+                // Filtrar por bÃºsqueda
                 if (_searchController.text.isNotEmpty) {
                   final query = _searchController.text.toLowerCase();
                   filteredProducts = filteredProducts
@@ -351,23 +405,77 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                   return const EmptyState(
                     icon: Icons.inventory_2_outlined,
                     title: 'No se encontraron productos',
-                    message: 'Intenta ajustar los filtros de búsqueda',
+                    message: 'Intenta ajustar los filtros de bÃºsqueda',
                   );
                 }
 
-                return GridView.builder(
-                  padding: const EdgeInsets.all(AppTheme.paddingMD),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.75,
-                    crossAxisSpacing: AppTheme.paddingMD,
-                    mainAxisSpacing: AppTheme.paddingMD,
-                  ),
-                  itemCount: filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = filteredProducts[index];
-                    return _ProductCard(product: product);
-                  },
+                return CustomScrollView(
+                  slivers: [
+                    // Recomendaciones personalizadas
+                    const SliverToBoxAdapter(
+                      child: RecommendationsSection(
+                        title: 'Recomendado para ti',
+                        type: RecommendationType.personalized,
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: Divider()),
+
+                    // Productos populares
+                    const SliverToBoxAdapter(
+                      child: RecommendationsSection(
+                        title: 'Lo mÃ¡s vendido',
+                        type: RecommendationType.popular,
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: Divider()),
+
+                    // Banner de instrucciones de voz
+                    SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Di: "AÃ±adir laptop al carrito" o "Buscar mouse"',
+                                style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Grid de productos
+                    SliverPadding(
+                      padding: const EdgeInsets.all(AppTheme.paddingMD),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.75,
+                          crossAxisSpacing: AppTheme.paddingMD,
+                          mainAxisSpacing: AppTheme.paddingMD,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final product = filteredProducts[index];
+                            return _ProductCard(product: product);
+                          },
+                          childCount: filteredProducts.length,
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               },
               loading: () =>
@@ -426,7 +534,7 @@ class _ProductCard extends StatelessWidget {
                     ),
             ),
 
-            // Información del producto
+            // InformaciÃ³n del producto
             Padding(
               padding: const EdgeInsets.all(AppTheme.paddingSM),
               child: Column(
@@ -461,7 +569,7 @@ class _ProductCard extends StatelessWidget {
                       ],
                       Text(
                         product.isLowStock
-                            ? '¡Pocas unidades!'
+                            ? 'Â¡Pocas unidades!'
                             : product.isOutOfStock
                             ? 'Agotado'
                             : 'Disponible',
@@ -486,7 +594,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-/// Widget del ícono del carrito con badge
+/// Widget del Ã­cono del carrito con badge
 class _CartIconButton extends ConsumerWidget {
   const _CartIconButton();
 
@@ -526,3 +634,4 @@ class _CartIconButton extends ConsumerWidget {
     );
   }
 }
+

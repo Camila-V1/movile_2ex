@@ -5,7 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 class VoiceService {
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts _flutterTts = FlutterTts();
-  
+
   bool _isListening = false;
   bool _isAvailable = false;
 
@@ -17,7 +17,7 @@ class VoiceService {
     try {
       // Solicitar permisos
       final status = await Permission.microphone.request();
-      
+
       if (status != PermissionStatus.granted) {
         print('❌ Permiso de micrófono denegado');
         return false;
@@ -43,7 +43,6 @@ class VoiceService {
 
       print('✅ Servicio de voz inicializado: $_isAvailable');
       return _isAvailable;
-      
     } catch (e) {
       print('❌ Error inicializando voz: $e');
       return false;
@@ -82,7 +81,6 @@ class VoiceService {
       await Future.delayed(const Duration(seconds: 6));
 
       return recognizedText;
-      
     } catch (e) {
       print('❌ Error escuchando: $e');
       return null;

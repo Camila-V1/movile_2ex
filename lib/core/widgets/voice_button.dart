@@ -16,11 +16,10 @@ class VoiceButton extends StatefulWidget {
   State<VoiceButton> createState() => _VoiceButtonState();
 }
 
-class _VoiceButtonState extends State<VoiceButton> 
+class _VoiceButtonState extends State<VoiceButton>
     with SingleTickerProviderStateMixin {
-  
   final VoiceService _voiceService = VoiceService();
-  
+
   bool _isInitialized = false;
   bool _isListening = false;
   String _listeningText = 'Escuchando...';
@@ -32,13 +31,13 @@ class _VoiceButtonState extends State<VoiceButton>
   void initState() {
     super.initState();
     _initializeVoice();
-    
+
     // Animación del botón mientras escucha
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
-    
+
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
@@ -98,10 +97,7 @@ class _VoiceButtonState extends State<VoiceButton>
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
   }
@@ -125,23 +121,19 @@ class _VoiceButtonState extends State<VoiceButton>
             return Transform.scale(
               scale: _isListening ? _scaleAnimation.value : 1.0,
               child: FloatingActionButton(
-                onPressed: _isInitialized && !_isListening 
-                    ? _startListening 
+                onPressed: _isInitialized && !_isListening
+                    ? _startListening
                     : null,
-                backgroundColor: _isListening 
-                    ? Colors.red 
-                    : Colors.blue,
+                backgroundColor: _isListening ? Colors.red : Colors.blue,
                 child: Icon(
-                  _isListening 
-                      ? Icons.mic 
-                      : Icons.mic_none,
+                  _isListening ? Icons.mic : Icons.mic_none,
                   size: 32,
                 ),
               ),
             );
           },
         ),
-        
+
         // Texto de estado
         if (_isListening)
           Container(
@@ -153,10 +145,7 @@ class _VoiceButtonState extends State<VoiceButton>
             ),
             child: Text(
               _listeningText,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
           ),
       ],

@@ -14,27 +14,33 @@
 
 ## 1️⃣ Dependencias
 
-### Agregar a `pubspec.yaml`
+### Verificar en `pubspec.yaml` (ya deberían estar)
 
 ```yaml
 dependencies:
   flutter:
     sdk: flutter
   
-  # Reconocimiento de voz
-  speech_to_text: ^6.6.0
+  # Ya existe - Reconocimiento de voz
+  speech_to_text: ^7.0.0
   
-  # Permisos
+  # Ya existe - Permisos
   permission_handler: ^11.0.1
   
-  # HTTP para llamar al API
-  http: ^1.1.0
+  # Ya existe - Cliente HTTP
+  dio: ^5.7.0
   
-  # Provider para estado del carrito
-  provider: ^6.1.1
+  # Ya existe - Estado
+  flutter_riverpod: ^2.6.1
   
-  # Para texto a voz (feedback al usuario)
+  # NUEVA - Para texto a voz (feedback al usuario)
   flutter_tts: ^3.8.3
+```
+
+### Si falta `flutter_tts`, agregarlo:
+
+```bash
+flutter pub add flutter_tts
 ```
 
 ### Instalar dependencias
@@ -105,7 +111,7 @@ flutter pub get
 
 ## 3️⃣ Servicio de Reconocimiento de Voz
 
-### Crear `lib/services/voice_service.dart`
+### Crear `lib/core/services/voice_service.dart`
 
 ```dart
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -245,17 +251,17 @@ class VoiceService {
 
 ## 4️⃣ Procesamiento de Comandos
 
-### Crear `lib/services/voice_command_processor.dart`
+### Crear `lib/core/services/voice_command_processor.dart`
 
 ```dart
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dio/dio.dart';
+import '../api/api_service.dart';
 
 class VoiceCommandProcessor {
-  final String baseUrl = 'https://backend-2ex-ecommerce.onrender.com/api';
-  final String token;
+  final ApiService _apiService;
 
-  VoiceCommandProcessor({required this.token});
+  VoiceCommandProcessor({required ApiService apiService}) 
+      : _apiService = apiService;
 
   /// Procesar comando de voz
   Future<VoiceCommandResult> processCommand(String command) async {
@@ -396,19 +402,16 @@ class VoiceCommandProcessor {
     );
   }
 
-  /// Buscar producto en el API
+  /// Buscar producto en el API usando Dio
   Future<Map<String, dynamic>?> _searchProduct(String productName) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/products/?search=$productName'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+      // Usar el ApiService existente con Dio
+      final response = await _apiService.get('/products/', queryParameters: {
+        'search': productName,
+      });
 
       if (response.statusCode == 200) {
-        final List<dynamic> products = json.decode(utf8.decode(response.bodyBytes));
+        final List<dynamic> products = response.data;
         
         if (products.isEmpty) {
           return null;
@@ -430,8 +433,11 @@ class VoiceCommandProcessor {
       }
 
       return null;
+    } on DioException catch (e) {
+      print('❌ Error buscando producto: ${e.message}');
+      return null;
     } catch (e) {
-      print('❌ Error buscando producto: $e');
+      print('❌ Error inesperado: $e');
       return null;
     }
   }
@@ -546,20 +552,21 @@ class VoiceCommandResult {
 
 ## 5️⃣ Widget de Botón de Voz
 
-### Crear `lib/widgets/voice_button.dart`
+### Crear `lib/shared/widgets/voice_button.dart`
 
 ```dart
 import 'package:flutter/material.dart';
-import '../services/voice_service.dart';
-import '../services/voice_command_processor.dart';
+import '../../core/services/voice_service.dart';
+import '../../core/services/voice_command_processor.dart';
+import '../../core/api/api_service.dart';
 
 class VoiceButton extends StatefulWidget {
-  final String token;
+  final ApiService apiService;
   final Function(VoiceCommandResult) onCommandProcessed;
 
   const VoiceButton({
     Key? key,
-    required this.token,
+    required this.apiService,
     required this.onCommandProcessed,
   }) : super(key: key);
 
@@ -583,7 +590,7 @@ class _VoiceButtonState extends State<VoiceButton>
   @override
   void initState() {
     super.initState();
-    _commandProcessor = VoiceCommandProcessor(token: widget.token);
+    _commandProcessor = VoiceCommandProcessor(apiService: widget.apiService);
     _initializeVoice();
     
     // Animación del botón mientras escucha
@@ -720,24 +727,24 @@ class _VoiceButtonState extends State<VoiceButton>
 
 ## 6️⃣ Integración con Carrito
 
-### Actualizar pantalla de productos
+### Actualizar `lib/features/cart/screens/products_screen.dart`
 
 ```dart
 import 'package:flutter/material.dart';
-import '../widgets/voice_button.dart';
-import '../services/voice_command_processor.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../shared/widgets/voice_button.dart';
+import '../../../core/services/voice_command_processor.dart';
+import '../../../core/api/api_service.dart';
+import '../../../core/providers/cart_provider.dart';
 
-class ProductsScreen extends StatefulWidget {
-  final String token;
-
-  const ProductsScreen({Key? key, required this.token}) : super(key: key);
+class ProductsScreen extends ConsumerStatefulWidget {
+  const ProductsScreen({Key? key}) : super(key: key);
 
   @override
-  State<ProductsScreen> createState() => _ProductsScreenState();
+  ConsumerState<ProductsScreen> createState() => _ProductsScreenState();
 }
 
-class _ProductsScreenState extends State<ProductsScreen> {
-  List<Map<String, dynamic>> _cart = [];
+class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   List<Map<String, dynamic>> _products = [];
   bool _showCart = false;
 
@@ -776,7 +783,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         break;
 
       case VoiceAction.clearCart:
-        _clearCart();
+        _clearCartFromVoice();
         break;
 
       case VoiceAction.unknown:
@@ -790,24 +797,16 @@ class _ProductsScreenState extends State<ProductsScreen> {
     int quantity,
     Map<String, dynamic> productData,
   ) {
-    setState(() {
-      // Buscar si ya está en el carrito
-      final index = _cart.indexWhere((item) => item['id'] == productId);
-      
-      if (index >= 0) {
-        // Aumentar cantidad
-        _cart[index]['quantity'] += quantity;
-      } else {
-        // Agregar nuevo
-        _cart.add({
-          'id': productId,
-          'name': productData['name'],
-          'price': productData['price'],
-          'quantity': quantity,
-          'image': productData['image_url'],
-        });
-      }
-    });
+    // Usar el CartProvider de Riverpod en vez de setState
+    final cartNotifier = ref.read(cartProvider.notifier);
+    
+    cartNotifier.addItem(
+      productId: productId,
+      name: productData['name'],
+      price: productData['price'].toDouble(),
+      quantity: quantity,
+      imageUrl: productData['image_url'],
+    );
 
     _showMessage(
       '✅ ${productData['name']} añadido al carrito (x$quantity)',
@@ -816,13 +815,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   void _searchProducts(String searchTerm) {
-    // Implementar búsqueda
+    // Implementar búsqueda con filtro
     print('Buscando: $searchTerm');
     _showMessage('Buscando "$searchTerm"...', isError: false);
+    
+    // Puedes usar un SearchProvider aquí
+    // ref.read(searchQueryProvider.notifier).state = searchTerm;
   }
 
-  void _clearCart() {
-    setState(() => _cart.clear());
+  void _clearCartFromVoice() {
+    // Usar el CartProvider
+    ref.read(cartProvider.notifier).clear();
     _showMessage('Carrito vaciado', isError: false);
   }
 
@@ -904,7 +907,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       
       // Botón flotante de voz
       floatingActionButton: VoiceButton(
-        token: widget.token,
+        apiService: ref.read(apiServiceProvider),
         onCommandProcessed: _handleVoiceCommand,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -941,6 +944,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 
   Widget _buildCartSheet() {
+    final cart = ref.watch(cartProvider);
+    
     return Container(
       height: 300,
       padding: EdgeInsets.all(16),
@@ -973,29 +978,32 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ],
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: _cart.length,
-              itemBuilder: (context, index) {
-                final item = _cart[index];
-                return ListTile(
-                  leading: item['image'] != null
-                      ? Image.network(item['image'], width: 50)
-                      : Icon(Icons.image),
-                  title: Text(item['name']),
-                  subtitle: Text('\$${item['price']} x ${item['quantity']}'),
-                  trailing: IconButton(
-                    icon: Icon(Icons.delete),
-                    onPressed: () {
-                      setState(() => _cart.removeAt(index));
+            child: cart.items.isEmpty
+                ? Center(child: Text('Carrito vacío'))
+                : ListView.builder(
+                    itemCount: cart.items.length,
+                    itemBuilder: (context, index) {
+                      final item = cart.items[index];
+                      return ListTile(
+                        leading: item.imageUrl != null
+                            ? Image.network(item.imageUrl!, width: 50)
+                            : Icon(Icons.image),
+                        title: Text(item.name),
+                        subtitle: Text('\$${item.price} x ${item.quantity}'),
+                        trailing: IconButton(
+                          icon: Icon(Icons.delete),
+                          onPressed: () {
+                            ref.read(cartProvider.notifier).removeItem(item.productId);
+                          },
+                        ),
+                      );
                     },
                   ),
-                );
-              },
-            ),
           ),
           ElevatedButton(
-            onPressed: _cart.isNotEmpty ? () {
-              // Proceder al pago
+            onPressed: cart.items.isNotEmpty ? () {
+              // Proceder al pago con GoRouter
+              // context.go('/checkout');
             } : null,
             child: Text('Proceder al Pago'),
             style: ElevatedButton.styleFrom(
