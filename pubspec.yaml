@@ -66,6 +66,8 @@ dependencies:
   
   # Voice Assistant
   speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.0
+  permission_handler: ^11.3.1
   
   # Image Picker
   image_picker: ^1.1.2

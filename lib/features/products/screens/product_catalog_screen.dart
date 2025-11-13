@@ -5,8 +5,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/cart_provider.dart';
 import '../../../core/services/product_service.dart';
+import '../../../core/services/voice_command_processor.dart';
+import '../../../core/api/api_service.dart';
 import '../../../core/models/product.dart';
 import '../../../core/models/category.dart';
+import '../../../core/widgets/voice_button.dart';
 import '../../../shared/constants/app_theme.dart';
 import '../../../shared/widgets/loading_indicator.dart';
 
@@ -43,6 +46,13 @@ class ProductCatalogScreen extends ConsumerStatefulWidget {
 class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
   final _searchController = TextEditingController();
   int? _selectedCategoryId;
+  late VoiceCommandProcessor _voiceCommandProcessor;
+
+  @override
+  void initState() {
+    super.initState();
+    _voiceCommandProcessor = VoiceCommandProcessor(ApiService());
+  }
 
   @override
   void dispose() {
@@ -54,6 +64,63 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
     await ref.read(authProvider.notifier).logout();
     if (mounted) {
       context.go('/auth/login');
+    }
+  }
+
+  void _handleVoiceCommand(VoiceCommandResult result) {
+    if (!result.success) {
+      _showMessage(result.message, isError: true);
+      return;
+    }
+
+    switch (result.action) {
+      case VoiceAction.addToCart:
+        _addToCartFromVoice(result.product!, result.quantity!);
+        break;
+
+      case VoiceAction.search:
+        _searchController.text = result.searchTerm!;
+        setState(() {});
+        break;
+
+      case VoiceAction.showCart:
+        context.push('/cart');
+        break;
+
+      case VoiceAction.clearCart:
+        ref.read(cartProvider.notifier).clearCart();
+        _showMessage('Carrito vaciado', isError: false);
+        break;
+
+      case VoiceAction.unknown:
+        _showMessage(result.message, isError: true);
+        break;
+    }
+  }
+
+  void _addToCartFromVoice(Product product, int quantity) {
+    if (product.isOutOfStock) {
+      _showMessage('Producto agotado', isError: true);
+      return;
+    }
+
+    ref.read(cartProvider.notifier).addItem(product, quantity: quantity);
+
+    _showMessage(
+      '✅ ${product.name} añadido al carrito (x$quantity)',
+      isError: false,
+    );
+  }
+
+  void _showMessage(String message, {required bool isError}) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -227,6 +294,32 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
 
           const Divider(),
 
+          // Banner de instrucciones de voz
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Di: "Añadir laptop al carrito" o "Buscar mouse"',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Lista de productos
           Expanded(
             child: productsAsync.when(
@@ -287,6 +380,11 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
           ),
         ],
       ),
+      floatingActionButton: VoiceButton(
+        commandProcessor: _voiceCommandProcessor,
+        onCommandProcessed: _handleVoiceCommand,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
