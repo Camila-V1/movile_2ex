@@ -11,27 +11,39 @@ final recommendationsServiceProvider = Provider<RecommendationsService>((ref) {
 });
 
 // Recomendaciones personalizadas
-final personalizedRecommendationsProvider =
-    FutureProvider<List<Recommendation>>((ref) async {
-      final service = ref.watch(recommendationsServiceProvider);
-      try {
-        return await service.getPersonalizedRecommendations(limit: 10);
-      } catch (e) {
-        // Si no está autenticado, retornar lista vacía
-        if (e.toString().contains('401') ||
-            e.toString().contains('autenticado')) {
-          return [];
-        }
-        rethrow;
-      }
-    });
+final personalizedRecommendationsProvider = FutureProvider<List<Recommendation>>((
+  ref,
+) async {
+  print(
+    '🎯 [PROVIDER-PERSONAL] Iniciando provider de recomendaciones personalizadas',
+  );
+  final service = ref.watch(recommendationsServiceProvider);
+  try {
+    final result = await service.getPersonalizedRecommendations(limit: 10);
+    print('🎯 [PROVIDER-PERSONAL] Resultado: ${result.length} recomendaciones');
+    return result;
+  } catch (e) {
+    print('❌ [PROVIDER-PERSONAL] Error: $e');
+    // Si no está autenticado, retornar lista vacía
+    if (e.toString().contains('401') || e.toString().contains('autenticado')) {
+      print(
+        '⚠️ [PROVIDER-PERSONAL] Usuario no autenticado, retornando lista vacía',
+      );
+      return [];
+    }
+    rethrow;
+  }
+});
 
 // Productos populares (no requiere autenticación)
 final popularProductsProvider = FutureProvider<List<Recommendation>>((
   ref,
 ) async {
+  print('🎯 [PROVIDER-POPULAR] Iniciando provider de productos populares');
   final service = ref.watch(recommendationsServiceProvider);
-  return await service.getPopularProducts(limit: 10);
+  final result = await service.getPopularProducts(limit: 10);
+  print('🎯 [PROVIDER-POPULAR] Resultado: ${result.length} productos');
+  return result;
 });
 
 // Productos similares a uno específico

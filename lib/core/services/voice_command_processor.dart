@@ -13,18 +13,22 @@ class VoiceCommandProcessor {
     // Normalizar comando (minúsculas, sin tildes)
     final normalizedCommand = _normalize(command);
 
+    // ✅ Expandir comandos cortos comunes
+    final expandedCommand = _expandShortCommands(normalizedCommand);
+    print('💡 Comando expandido: "$expandedCommand"');
+
     // 1. Detectar intención
-    if (_isAddToCartCommand(normalizedCommand)) {
+    if (_isAddToCartCommand(expandedCommand)) {
       return await _handleAddToCart(command); // Enviar comando original
-    } else if (_isSearchCommand(normalizedCommand)) {
-      return await _handleSearch(normalizedCommand);
-    } else if (_isShowCartCommand(normalizedCommand)) {
+    } else if (_isSearchCommand(expandedCommand)) {
+      return await _handleSearch(expandedCommand);
+    } else if (_isShowCartCommand(expandedCommand)) {
       return VoiceCommandResult(
         success: true,
         action: VoiceAction.showCart,
         message: 'Mostrando carrito',
       );
-    } else if (_isClearCartCommand(normalizedCommand)) {
+    } else if (_isClearCartCommand(expandedCommand)) {
       return VoiceCommandResult(
         success: true,
         action: VoiceAction.clearCart,
@@ -40,6 +44,35 @@ class VoiceCommandProcessor {
     }
   }
 
+  /// Expandir comandos cortos comunes
+  String _expandShortCommands(String command) {
+    // ✅ "añade una lap" → "anadir una laptop al carrito"
+    if (command.contains('anadi') || command.contains('anadi')) {
+      if (!command.contains('carrito')) {
+        command = '$command al carrito';
+      }
+    }
+
+    // ✅ Expandir abreviaciones comunes
+    final expansions = {
+      'lap': 'laptop',
+      'note': 'notebook',
+      'compu': 'computadora',
+      'celu': 'celular',
+      'auri': 'auriculares',
+      'tele': 'television',
+      'cama': 'camara',
+    };
+
+    expansions.forEach((short, full) {
+      if (command.contains(short) && !command.contains(full)) {
+        command = command.replaceAll(short, full);
+      }
+    });
+
+    return command;
+  }
+
   /// Detectar si es comando de añadir al carrito
   bool _isAddToCartCommand(String command) {
     final addKeywords = [
@@ -50,11 +83,18 @@ class VoiceCommandProcessor {
       'agrega',
       'pon',
       'dame',
+      'quiero', // ✅ Nuevo
+      'comprar', // ✅ Nuevo
     ];
     final cartKeywords = ['carrito', 'carro', 'cesta'];
 
-    return addKeywords.any((word) => command.contains(word)) &&
-        cartKeywords.any((word) => command.contains(word));
+    // ✅ Si contiene palabra de añadir, asumir que es para el carrito
+    // (aunque no diga "carrito" explícitamente)
+    final hasAddKeyword = addKeywords.any((word) => command.contains(word));
+    final hasCartKeyword = cartKeywords.any((word) => command.contains(word));
+
+    // ✅ Si dice "añadir/quiero/dame" + producto, asumir carrito
+    return hasAddKeyword || (hasAddKeyword && hasCartKeyword);
   }
 
   /// Detectar si es comando de búsqueda
@@ -97,6 +137,12 @@ class VoiceCommandProcessor {
   /// Manejar comando de añadir al carrito usando NLP del backend
   Future<VoiceCommandResult> _handleAddToCart(String command) async {
     try {
+      // ✅ Detectar si el comando está incompleto (solo "añadir al carrito")
+      if (_isIncompleteAddCommand(command)) {
+        print('⚠️ Comando incompleto detectado: "$command"');
+        return await _handleIncompleteCommand(command);
+      }
+
       print('🤖 Enviando comando al backend NLP: "$command"');
 
       // ✅ Llamar al endpoint NLP del backend con 'prompt' (no 'text')
@@ -129,7 +175,8 @@ class VoiceCommandProcessor {
           return VoiceCommandResult(
             success: false,
             action: VoiceAction.addToCart,
-            message: data['message'] ??
+            message:
+                data['message'] ??
                 'No encontré productos con ese nombre. Intenta con otro',
           );
         }
@@ -146,6 +193,103 @@ class VoiceCommandProcessor {
         success: false,
         action: VoiceAction.addToCart,
         message: 'Ocurrió un error al procesar el comando',
+      );
+    }
+  }
+
+  /// Detectar si el comando de añadir está incompleto
+  bool _isIncompleteAddCommand(String command) {
+    final normalized = _normalize(command);
+
+    // Lista de comandos incompletos comunes
+    final incompletePatterns = [
+      'anadir al carrito',
+      'agregar al carrito',
+      'pon al carrito',
+      'al carrito',
+      'anadir',
+      'agregar',
+      'quiero',
+      'dame',
+      'comprar',
+    ];
+
+    // Si el comando es exactamente uno de estos (sin producto)
+    for (final pattern in incompletePatterns) {
+      if (normalized.trim() == pattern) {
+        return true;
+      }
+    }
+
+    // Si tiene menos de 3 palabras y contiene "añadir/agregar"
+    final words = normalized.split(' ').where((w) => w.isNotEmpty).toList();
+    if (words.length <= 3) {
+      final hasAddKeyword = [
+        'anadir',
+        'agregar',
+        'pon',
+      ].any((k) => normalized.contains(k));
+      final hasCartKeyword = [
+        'carrito',
+        'carro',
+        'cesta',
+      ].any((k) => normalized.contains(k));
+
+      // Si solo dice "añadir al carrito" sin producto
+      if (hasAddKeyword && hasCartKeyword && words.length <= 3) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Manejar comando incompleto - sugerir productos populares
+  Future<VoiceCommandResult> _handleIncompleteCommand(String command) async {
+    try {
+      print('🔍 Obteniendo productos populares para sugerencia...');
+
+      // Obtener productos populares del backend
+      final response = await _apiService.get(
+        '/api/products/',
+        queryParameters: {'ordering': '-average_rating', 'page_size': '5'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> productsData = response.data is List
+            ? response.data
+            : (response.data['results'] ?? []);
+
+        if (productsData.isNotEmpty) {
+          final products = productsData
+              .map((json) => Product.fromJson(json))
+              .toList();
+
+          print('✅ Encontrados ${products.length} productos populares');
+
+          return VoiceCommandResult(
+            success: false,
+            action: VoiceAction.needsProduct,
+            message:
+                '¿Qué producto quieres agregar? Por ejemplo: ${products.first.name}',
+            suggestedProducts: products,
+          );
+        }
+      }
+
+      // Fallback si no se pueden obtener productos
+      return VoiceCommandResult(
+        success: false,
+        action: VoiceAction.needsProduct,
+        message:
+            '¿Qué producto quieres agregar? Por ejemplo: laptop, mouse, teclado',
+      );
+    } catch (e) {
+      print('❌ Error obteniendo productos: $e');
+      return VoiceCommandResult(
+        success: false,
+        action: VoiceAction.needsProduct,
+        message: '¿Qué producto quieres agregar? Dime el nombre del producto',
       );
     }
   }
@@ -204,10 +348,11 @@ enum VoiceAction {
   addToCart,
   addToCartNLP, // Nuevo: cuando el backend ya añadió al carrito
   confirmProduct, // Nuevo: cuando necesita confirmación del usuario
+  needsProduct, // ✅ Nuevo: cuando falta especificar el producto
   search,
   showCart,
   clearCart,
-  unknown
+  unknown,
 }
 
 /// Resultado del procesamiento de comando

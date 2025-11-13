@@ -8,6 +8,7 @@ class VoiceService {
 
   bool _isListening = false;
   bool _isAvailable = false;
+  String _selectedLocaleId = 'es-ES'; // ✅ Locale por defecto
 
   bool get isListening => _isListening;
   bool get isAvailable => _isAvailable;
@@ -35,9 +36,25 @@ class VoiceService {
         },
       );
 
+      // ✅ Verificar locales disponibles
+      if (_isAvailable) {
+        final locales = await _speech.locales();
+        print(
+          '📍 Locales disponibles: ${locales.map((l) => l.localeId).join(", ")}',
+        );
+
+        // Buscar español
+        final spanishLocale = locales.firstWhere(
+          (locale) => locale.localeId.startsWith('es'),
+          orElse: () => locales.first,
+        );
+        _selectedLocaleId = spanishLocale.localeId;
+        print('✅ Usando locale: $_selectedLocaleId');
+      }
+
       // Configurar text to speech
       await _flutterTts.setLanguage('es-ES');
-      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setSpeechRate(0.6); // ✅ Un poco más rápido
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
 
@@ -62,23 +79,56 @@ class VoiceService {
     }
 
     String? recognizedText;
+    String? lastPartialResult;
+    bool hasReceivedResult = false;
 
     try {
       _isListening = true;
 
       await _speech.listen(
         onResult: (result) {
-          recognizedText = result.recognizedWords;
-          print('🎤 Reconocido: $recognizedText');
+          hasReceivedResult = true;
+          lastPartialResult = result.recognizedWords;
+
+          // ✅ Actualizar con el resultado final cuando esté disponible
+          if (result.finalResult) {
+            recognizedText = result.recognizedWords;
+            print('🎤 Reconocido FINAL: $recognizedText');
+          } else {
+            print('🎤 Reconocido parcial: $lastPartialResult');
+          }
         },
-        listenFor: const Duration(seconds: 5),
-        pauseFor: const Duration(seconds: 3),
-        partialResults: false,
-        localeId: 'es_ES', // Español
+        listenFor: const Duration(seconds: 8), // ✅ 8 segundos (más realista)
+        pauseFor: const Duration(seconds: 2), // ✅ 2 segundos de pausa
+        partialResults: true, // ✅ Mostrar resultados parciales
+        localeId: _selectedLocaleId, // ✅ Usar locale detectado
+        cancelOnError: false, // ✅ No cancelar en errores menores
+        listenMode: stt.ListenMode.confirmation, // ✅ Modo confirmación
       );
 
-      // Esperar a que termine de escuchar
-      await Future.delayed(const Duration(seconds: 6));
+      // ✅ Esperar hasta que termine o timeout
+      int waitCount = 0;
+      while (_isListening && waitCount < 90) {
+        // 9 segundos max
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+      }
+
+      // ✅ Si no hay resultado final, usar el último parcial
+      if (recognizedText == null &&
+          lastPartialResult != null &&
+          lastPartialResult!.isNotEmpty) {
+        recognizedText = lastPartialResult;
+        print('🎤 Usando resultado parcial: $recognizedText');
+      }
+
+      // ✅ Si no recibió nada, informar
+      if (!hasReceivedResult ||
+          recognizedText == null ||
+          recognizedText!.isEmpty) {
+        print('⚠️ No se reconoció ningún texto');
+        return null;
+      }
 
       return recognizedText;
     } catch (e) {
@@ -86,6 +136,7 @@ class VoiceService {
       return null;
     } finally {
       _isListening = false;
+      await _speech.stop(); // ✅ Asegurar que se detenga
     }
   }
 

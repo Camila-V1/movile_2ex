@@ -23,6 +23,10 @@ class RecommendationsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    print(
+      '📱 [WIDGET-RECOM] Construyendo RecommendationsSection: $title (tipo: $type)',
+    );
+
     // Seleccionar el provider según el tipo
     final recommendationsAsync = _getRecommendationsProvider(ref);
 
@@ -52,16 +56,32 @@ class RecommendationsSection extends ConsumerWidget {
 
           // Carrusel de recomendaciones
           recommendationsAsync.when(
-            loading: () => const SizedBox(
-              height: 280,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, stack) => const SizedBox.shrink(), // Ocultar sección en caso de error
+            loading: () {
+              print('📱 [WIDGET-RECOM] Estado: LOADING para $title');
+              return const SizedBox(
+                height: 280,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            },
+            error: (error, stack) {
+              print('❌ [WIDGET-RECOM] Estado: ERROR para $title - $error');
+              return const SizedBox.shrink(); // Ocultar sección en caso de error
+            },
             data: (recommendations) {
+              print(
+                '📱 [WIDGET-RECOM] Estado: DATA para $title - ${recommendations.length} items',
+              );
+
               if (recommendations.isEmpty) {
+                print(
+                  '⚠️ [WIDGET-RECOM] Lista vacía, ocultando sección $title',
+                );
                 return const SizedBox.shrink();
               }
 
+              print(
+                '✅ [WIDGET-RECOM] Mostrando ${recommendations.length} recomendaciones para $title',
+              );
               return SizedBox(
                 height: 280,
                 child: ListView.builder(

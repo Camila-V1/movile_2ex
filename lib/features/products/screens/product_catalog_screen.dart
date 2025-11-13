@@ -70,7 +70,9 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
 
   void _handleVoiceCommand(VoiceCommandResult result) {
     // ✅ Manejar casos donde success=false pero hay acción especial
-    if (!result.success && result.action != VoiceAction.confirmProduct) {
+    if (!result.success &&
+        result.action != VoiceAction.confirmProduct &&
+        result.action != VoiceAction.needsProduct) {
       _showMessage(result.message, isError: true);
       return;
     }
@@ -104,6 +106,12 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
         _showMessage('Carrito vaciado', isError: false);
         break;
 
+      case VoiceAction.needsProduct:
+        // ✅ NUEVO: El voice_button.dart maneja esto automáticamente
+        // Solo mostrar el mensaje (ya lo dijo por voz)
+        _showMessage(result.message, isError: false);
+        break;
+
       case VoiceAction.unknown:
         _showMessage(result.message, isError: true);
         break;
@@ -131,7 +139,9 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
           isActive: true,
         );
 
-        ref.read(cartProvider.notifier).addItem(product, quantity: item.quantity);
+        ref
+            .read(cartProvider.notifier)
+            .addItem(product, quantity: item.quantity);
       } catch (e) {
         print('❌ Error agregando item ${item.name}: $e');
       }
@@ -139,8 +149,11 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
 
     // Mostrar mensaje de éxito
     final count = result.addedItems!.length;
-    final totalQty = result.addedItems!.fold(0, (sum, item) => sum + item.quantity);
-    
+    final totalQty = result.addedItems!.fold(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
+
     _showMessage(
       '✅ $count producto(s) añadido(s) al carrito (x$totalQty)',
       isError: false,
@@ -160,14 +173,18 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
           children: [
             const Text('¿Cuál de estos productos quieres agregar?'),
             const SizedBox(height: 16),
-            ...products.take(3).map((product) => ListTile(
-              title: Text(product.name),
-              subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
-              onTap: () {
-                Navigator.pop(context);
-                _addToCartFromVoice(product, 1);
-              },
-            )),
+            ...products
+                .take(3)
+                .map(
+                  (product) => ListTile(
+                    title: Text(product.name),
+                    subtitle: Text('\$${product.price.toStringAsFixed(2)}'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _addToCartFromVoice(product, 1);
+                    },
+                  ),
+                ),
           ],
         ),
         actions: [
@@ -421,21 +438,14 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
 
                     const SliverToBoxAdapter(child: Divider()),
 
-                    // Productos populares
-                    const SliverToBoxAdapter(
-                      child: RecommendationsSection(
-                        title: 'Lo mÃ¡s vendido',
-                        type: RecommendationType.popular,
-                      ),
-                    ),
-
-                    const SliverToBoxAdapter(child: Divider()),
-
                     // Banner de instrucciones de voz
                     SliverToBoxAdapter(
                       child: Container(
                         padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(8),
@@ -443,12 +453,19 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.mic, color: Colors.blue.shade700, size: 20),
+                            Icon(
+                              Icons.mic,
+                              color: Colors.blue.shade700,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Di: "AÃ±adir laptop al carrito" o "Buscar mouse"',
-                                style: TextStyle(fontSize: 12, color: Colors.blue.shade900),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue.shade900,
+                                ),
                               ),
                             ),
                           ],
@@ -460,19 +477,17 @@ class _ProductCatalogScreenState extends ConsumerState<ProductCatalogScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.all(AppTheme.paddingMD),
                       sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75,
-                          crossAxisSpacing: AppTheme.paddingMD,
-                          mainAxisSpacing: AppTheme.paddingMD,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final product = filteredProducts[index];
-                            return _ProductCard(product: product);
-                          },
-                          childCount: filteredProducts.length,
-                        ),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: AppTheme.paddingMD,
+                              mainAxisSpacing: AppTheme.paddingMD,
+                            ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final product = filteredProducts[index];
+                          return _ProductCard(product: product);
+                        }, childCount: filteredProducts.length),
                       ),
                     ),
                   ],
@@ -634,4 +649,3 @@ class _CartIconButton extends ConsumerWidget {
     );
   }
 }
-

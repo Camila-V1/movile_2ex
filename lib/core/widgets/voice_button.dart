@@ -62,14 +62,27 @@ class _VoiceButtonState extends State<VoiceButton>
 
     if (_isListening) return;
 
+    // ✅ Verificar mounted antes de setState
+    if (!mounted) return;
+
     setState(() {
       _isListening = true;
       _listeningText = 'Escuchando...';
     });
 
+    // ✅ Esperar a que termine de hablar ANTES de escuchar
     await _voiceService.speak('¿Qué deseas hacer?');
+    await Future.delayed(
+      const Duration(milliseconds: 1500),
+    ); // ✅ Esperar a que termine TTS
+
+    // ✅ Detener TTS explícitamente antes de escuchar
+    await _voiceService.stopSpeaking();
 
     final command = await _voiceService.listen();
+
+    // ✅ Verificar mounted antes de setState
+    if (!mounted) return;
 
     setState(() {
       _isListening = false;
@@ -80,12 +93,41 @@ class _VoiceButtonState extends State<VoiceButton>
       return;
     }
 
+    // ✅ Verificar mounted antes de setState
+    if (!mounted) return;
+
     setState(() {
       _listeningText = 'Procesando: "$command"';
     });
 
     // Procesar comando
     final result = await widget.commandProcessor.processCommand(command);
+
+    // ✅ Si necesita especificar producto, escuchar de nuevo
+    if (result.action == VoiceAction.needsProduct) {
+      await _voiceService.speak(result.message);
+      await Future.delayed(const Duration(milliseconds: 1500));
+      await _voiceService.stopSpeaking();
+
+      // Escuchar el nombre del producto
+      final productCommand = await _voiceService.listen();
+
+      if (productCommand != null && productCommand.isNotEmpty) {
+        // Construir comando completo
+        final fullCommand = 'añadir $productCommand al carrito';
+        print('🔄 Reintentando con comando completo: "$fullCommand"');
+
+        // Procesar comando completo
+        final newResult = await widget.commandProcessor.processCommand(
+          fullCommand,
+        );
+        await _voiceService.speak(newResult.message);
+        widget.onCommandProcessed(newResult);
+      } else {
+        await _voiceService.speak('No escuché el producto. Intenta de nuevo.');
+      }
+      return;
+    }
 
     // Dar feedback de voz
     await _voiceService.speak(result.message);

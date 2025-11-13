@@ -1,0 +1,331 @@
+import '../api/api_service.dart';
+import '../models/product.dart';
+
+class VoiceCommandProcessor {
+  final ApiService _apiService;
+
+  VoiceCommandProcessor(this._apiService);
+
+  /// Procesar comando de voz
+  Future<VoiceCommandResult> processCommand(String command) async {
+    print('🔍 Procesando comando: "$command"');
+
+    // Normalizar comando (minúsculas, sin tildes)
+    final normalizedCommand = _normalize(command);
+
+    // 1. Detectar intención
+    if (_isAddToCartCommand(normalizedCommand)) {
+      return await _handleAddToCart(normalizedCommand);
+    } else if (_isSearchCommand(normalizedCommand)) {
+      return await _handleSearch(normalizedCommand);
+    } else if (_isShowCartCommand(normalizedCommand)) {
+      return VoiceCommandResult(
+        success: true,
+        action: VoiceAction.showCart,
+        message: 'Mostrando carrito',
+      );
+    } else if (_isClearCartCommand(normalizedCommand)) {
+      return VoiceCommandResult(
+        success: true,
+        action: VoiceAction.clearCart,
+        message: 'Vaciando carrito',
+      );
+    } else {
+      return VoiceCommandResult(
+        success: false,
+        action: VoiceAction.unknown,
+        message:
+            'No entendí el comando. Intenta con: "añadir laptop al carrito" o "buscar mouse"',
+      );
+    }
+  }
+
+  /// Detectar si es comando de añadir al carrito
+  bool _isAddToCartCommand(String command) {
+    final addKeywords = [
+      'añadir',
+      'agregar',
+      'anadir',
+      'agregar',
+      'añade',
+      'agrega',
+    ];
+    final cartKeywords = ['carrito', 'carro', 'cesta'];
+
+    return addKeywords.any((word) => command.contains(word)) &&
+        cartKeywords.any((word) => command.contains(word));
+  }
+
+  /// Detectar si es comando de búsqueda
+  bool _isSearchCommand(String command) {
+    final searchKeywords = [
+      'buscar',
+      'busca',
+      'busqueda',
+      'encontrar',
+      'buscarme',
+    ];
+    return searchKeywords.any((word) => command.contains(word));
+  }
+
+  /// Detectar si es comando de mostrar carrito
+  bool _isShowCartCommand(String command) {
+    final showKeywords = ['mostrar', 'muestra', 'ver', 've', 'abrir', 'abre'];
+    final cartKeywords = ['carrito', 'carro', 'cesta'];
+
+    return showKeywords.any((word) => command.contains(word)) &&
+        cartKeywords.any((word) => command.contains(word));
+  }
+
+  /// Detectar si es comando de vaciar carrito
+  bool _isClearCartCommand(String command) {
+    final clearKeywords = [
+      'vaciar',
+      'vacia',
+      'limpiar',
+      'limpia',
+      'borrar',
+      'borra',
+    ];
+    final cartKeywords = ['carrito', 'carro', 'cesta'];
+
+    return clearKeywords.any((word) => command.contains(word)) &&
+        cartKeywords.any((word) => command.contains(word));
+  }
+
+  /// Manejar comando de añadir al carrito
+  Future<VoiceCommandResult> _handleAddToCart(String command) async {
+    try {
+      // Extraer nombre del producto
+      final productName = _extractProductName(command);
+
+      if (productName.isEmpty) {
+        return VoiceCommandResult(
+          success: false,
+          action: VoiceAction.addToCart,
+          message:
+              'No pude identificar el producto. Intenta decir: "añadir laptop al carrito"',
+        );
+      }
+
+      print('🔍 Buscando producto: "$productName"');
+
+      // Buscar producto por nombre
+      final product = await _searchProduct(productName);
+
+      if (product == null) {
+        return VoiceCommandResult(
+          success: false,
+          action: VoiceAction.addToCart,
+          message:
+              'No encontré el producto "$productName". Intenta con otro nombre.',
+        );
+      }
+
+      // Extraer cantidad (por defecto 1)
+      final quantity = _extractQuantity(command);
+
+      return VoiceCommandResult(
+        success: true,
+        action: VoiceAction.addToCart,
+        message: 'Añadiendo ${product.name} al carrito',
+        productId: product.id,
+        quantity: quantity,
+        product: product,
+      );
+    } catch (e) {
+      print('❌ Error en _handleAddToCart: $e');
+      return VoiceCommandResult(
+        success: false,
+        action: VoiceAction.addToCart,
+        message: 'Ocurrió un error al procesar el comando',
+      );
+    }
+  }
+
+  /// Manejar comando de búsqueda
+  Future<VoiceCommandResult> _handleSearch(String command) async {
+    final searchTerm = _extractSearchTerm(command);
+
+    if (searchTerm.isEmpty) {
+      return VoiceCommandResult(
+        success: false,
+        action: VoiceAction.search,
+        message: 'No pude identificar qué buscar',
+      );
+    }
+
+    return VoiceCommandResult(
+      success: true,
+      action: VoiceAction.search,
+      message: 'Buscando "$searchTerm"',
+      searchTerm: searchTerm,
+    );
+  }
+
+  /// Buscar producto en el API
+  Future<Product?> _searchProduct(String productName) async {
+    try {
+      final response = await _apiService.get('/api/products/');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> productsJson = response.data;
+        final products = productsJson
+            .map((json) => Product.fromJson(json))
+            .toList();
+
+        if (products.isEmpty) {
+          return null;
+        }
+
+        // Buscar coincidencia exacta o parcial
+        final normalizedSearch = _normalize(productName);
+
+        for (var product in products) {
+          final normalizedName = _normalize(product.name);
+          if (normalizedName.contains(normalizedSearch) ||
+              normalizedSearch.contains(normalizedName)) {
+            return product;
+          }
+        }
+
+        // Si no hay coincidencia exacta, devolver el primero
+        return products.first;
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error buscando producto: $e');
+      return null;
+    }
+  }
+
+  /// Extraer nombre del producto del comando
+  String _extractProductName(String command) {
+    // Remover palabras de comando
+    final wordsToRemove = [
+      'añadir',
+      'agregar',
+      'anadir',
+      'añade',
+      'agrega',
+      'al',
+      'el',
+      'la',
+      'los',
+      'las',
+      'un',
+      'una',
+      'carrito',
+      'carro',
+      'cesta',
+      'por',
+      'favor',
+      'quiero',
+      'dame',
+    ];
+
+    List<String> words = command.split(' ');
+    words = words
+        .where((word) => !wordsToRemove.contains(word) && !_isNumber(word))
+        .toList();
+
+    return words.join(' ').trim();
+  }
+
+  /// Extraer término de búsqueda
+  String _extractSearchTerm(String command) {
+    final wordsToRemove = [
+      'buscar',
+      'busca',
+      'busqueda',
+      'encontrar',
+      'buscarme',
+    ];
+
+    List<String> words = command.split(' ');
+    words = words.where((word) => !wordsToRemove.contains(word)).toList();
+
+    return words.join(' ').trim();
+  }
+
+  /// Extraer cantidad del comando
+  int _extractQuantity(String command) {
+    final words = command.split(' ');
+
+    for (var word in words) {
+      // Buscar números
+      if (_isNumber(word)) {
+        return int.tryParse(word) ?? 1;
+      }
+
+      // Buscar números en palabras
+      switch (word) {
+        case 'uno':
+        case 'una':
+          return 1;
+        case 'dos':
+          return 2;
+        case 'tres':
+          return 3;
+        case 'cuatro':
+          return 4;
+        case 'cinco':
+          return 5;
+        case 'seis':
+          return 6;
+        case 'siete':
+          return 7;
+        case 'ocho':
+          return 8;
+        case 'nueve':
+          return 9;
+        case 'diez':
+          return 10;
+      }
+    }
+
+    return 1; // Por defecto 1
+  }
+
+  /// Verificar si es número
+  bool _isNumber(String word) {
+    return int.tryParse(word) != null;
+  }
+
+  /// Normalizar texto (minúsculas, sin tildes)
+  String _normalize(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ñ', 'n');
+  }
+}
+
+/// Enum de acciones de voz
+enum VoiceAction { addToCart, search, showCart, clearCart, unknown }
+
+/// Resultado del procesamiento de comando
+class VoiceCommandResult {
+  final bool success;
+  final VoiceAction action;
+  final String message;
+  final int? productId;
+  final int? quantity;
+  final Product? product;
+  final String? searchTerm;
+
+  VoiceCommandResult({
+    required this.success,
+    required this.action,
+    required this.message,
+    this.productId,
+    this.quantity,
+    this.product,
+    this.searchTerm,
+  });
+}
